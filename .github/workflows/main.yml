@@ -1,0 +1,106 @@
+name: main
+
+on:
+  workflow_dispatch:
+    inputs:
+      env:
+        type: environment
+        description: 'Select environment to deploy'
+        required: true
+        default: 'dev'
+
+concurrency:
+  group: ${{ github.ref }}-1
+  cancel-in-progress: true
+
+env:
+  AWS_REGION: ap-east-1
+  ECS_TASK_DEFINITION: task-definition.json
+  IMAGE_TAG: ${{ github.sha }}
+
+permissions:
+  id-token: write # required for OIDC
+  contents: read # required for actions/checkout
+
+jobs:
+  build:
+    name: Build[${{ github.event.inputs.env || 'dev' }}]
+    runs-on: ubuntu-latest
+    environment:
+      name: ${{ github.event.inputs.env || 'dev' }}
+
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Configure AWS credentials
+        uses: aws-actions/configure-aws-credentials@v4
+        with:
+          role-to-assume: ${{ secrets.ROLE_TO_ASSUME }}
+          aws-region: ${{ env.AWS_REGION }}
+
+      - name: Login to Amazon ECR
+        id: login-ecr
+        uses: aws-actions/amazon-ecr-login@v2
+
+      - name: Set up Docker Buildx
+        uses: docker/setup-buildx-action@v3
+
+      - name: Set up JDK 21
+        uses: actions/setup-java@v4
+        with:
+          distribution: temurin
+          java-version: '21'
+          cache: maven
+
+      - name: Build with Maven
+        run: ./mvnw -B -ntp clean package
+
+      - name: Cache Docker layers
+        uses: actions/cache@v4
+        with:
+          path: /tmp/.buildx-cache
+          key: ${{ runner.os }}-buildx-${{ github.sha }}
+          restore-keys: |
+            ${{ runner.os }}-buildx-
+
+      - name: Build, tag and push image to Amazon ECR
+        uses: docker/build-push-action@v6
+        with:
+          context: .
+          file: Dockerfile
+          provenance: false
+          push: true
+          tags: |
+            ${{ steps.login-ecr.outputs.registry }}/${{ vars.ECR_REPOSITORY }}:${{ env.IMAGE_TAG }}
+          # cache-from: type=local,src=/tmp/.buildx-cache
+          # cache-to: type=local,dest=/tmp/.buildx-cache-new,mode=max
+
+      # - name: Move cache
+      #   run: |
+      #     rm -rf /tmp/.buildx-cache
+      #     mv /tmp/.buildx-cache-new /tmp/.buildx-cache
+
+  deploy:
+    name: Deploy[${{ github.event.inputs.env || 'dev' }}]
+    needs: [build]
+    runs-on: ubuntu-latest
+    environment:
+      name: ${{ github.event.inputs.env || 'dev' }}
+
+    steps:
+      - name: Mock deploy
+        shell: bash
+        run: |
+          set -euo pipefail
+          echo "[MOCK] Deploy start"
+          echo "env=${{ github.event.inputs.env || 'dev' }}"
+          echo "region=${AWS_REGION}"
+          echo "image_tag=${IMAGE_TAG}"
+          echo "ecr_repo=${{ vars.ECR_REPOSITORY }}"
+          echo "ecs_cluster=${{ vars.ECS_CLUSTER }}"
+          echo "ecs_service=${{ vars.ECS_SERVICE }}"
+          echo "ecs_task=${{ vars.ECS_TASK }}"
+          echo "container=${{ vars.CONTAINER_NAME }}"
+          echo "[MOCK] Would update task definition and deploy to ECS here."
+          echo "[MOCK] Deploy end"
