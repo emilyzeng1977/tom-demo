@@ -4,10 +4,12 @@ on:
   workflow_dispatch:
     inputs:
       env:
-        type: environment
+        type: choice
         description: 'Select environment to deploy'
-        required: true
-        default: 'dev'
+        options:
+          - dev
+          - staging
+          - prod
 
 concurrency:
   group: ${{ github.ref }}-1
