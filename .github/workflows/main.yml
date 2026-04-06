@@ -8,8 +8,6 @@ on:
         description: 'Select environment to deploy'
         options:
           - dev
-          - staging
-          - prod
 
 concurrency:
   group: ${{ github.ref }}-1
@@ -35,15 +33,15 @@ jobs:
       - name: Checkout
         uses: actions/checkout@v4
 
-      - name: Configure AWS credentials
-        uses: aws-actions/configure-aws-credentials@v4
-        with:
-          role-to-assume: ${{ secrets.ROLE_TO_ASSUME }}
-          aws-region: ${{ env.AWS_REGION }}
-
-      - name: Login to Amazon ECR
-        id: login-ecr
-        uses: aws-actions/amazon-ecr-login@v2
+#      - name: Configure AWS credentials
+#        uses: aws-actions/configure-aws-credentials@v4
+#        with:
+#          role-to-assume: ${{ secrets.ROLE_TO_ASSUME }}
+#          aws-region: ${{ env.AWS_REGION }}
+#
+#      - name: Login to Amazon ECR
+#        id: login-ecr
+#        uses: aws-actions/amazon-ecr-login@v2
 
       - name: Set up Docker Buildx
         uses: docker/setup-buildx-action@v3
@@ -66,15 +64,15 @@ jobs:
           restore-keys: |
             ${{ runner.os }}-buildx-
 
-      - name: Build, tag and push image to Amazon ECR
-        uses: docker/build-push-action@v6
-        with:
-          context: .
-          file: Dockerfile
-          provenance: false
-          push: true
-          tags: |
-            ${{ steps.login-ecr.outputs.registry }}/${{ vars.ECR_REPOSITORY }}:${{ env.IMAGE_TAG }}
+#      - name: Build, tag and push image to Amazon ECR
+#        uses: docker/build-push-action@v6
+#        with:
+#          context: .
+#          file: Dockerfile
+#          provenance: false
+#          push: true
+#          tags: |
+#            ${{ steps.login-ecr.outputs.registry }}/${{ vars.ECR_REPOSITORY }}:${{ env.IMAGE_TAG }}
           # cache-from: type=local,src=/tmp/.buildx-cache
           # cache-to: type=local,dest=/tmp/.buildx-cache-new,mode=max
 
