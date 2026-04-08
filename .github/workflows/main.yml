@@ -74,7 +74,8 @@ jobs:
 
       - name: Load Docker image
         run: docker load -i image.tar
-
+      - name: print variable
+        run: echo "AWS_ROLE=${{ vars.AWS_ROLE }}"
       - name: Configure AWS credentials
         uses: aws-actions/configure-aws-credentials@v4
         with:
