@@ -3,7 +3,7 @@ name: tom-demo-cicd-pipeline
 on:
   push:
     branches:
-      - main     # 自动部署到 dev
+      - '**'     # 自动部署到 dev
   workflow_dispatch:
     inputs:
       env:
@@ -65,6 +65,8 @@ jobs:
     name: Push Image (Requires Approval)
     needs: [ build ]
     runs-on: ubuntu-latest
+
+    if: github.ref == 'refs/heads/main'
 
     environment:
       name: approval-${{ github.event.inputs.env || 'dev' }}
