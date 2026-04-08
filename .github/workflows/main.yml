@@ -1,4 +1,4 @@
-name: main
+name: tom-demo-cicd-pipeline
 
 on:
   workflow_dispatch:
@@ -9,7 +9,6 @@ on:
         type: choice
         options:
           - dev
-          - prod
 
 concurrency:
   group: ${{ github.ref }}-1
