@@ -1,6 +1,9 @@
 name: tom-demo-cicd-pipeline
 
 on:
+  push:
+    branches:
+      - main     # 自动部署到 dev
   workflow_dispatch:
     inputs:
       env:
