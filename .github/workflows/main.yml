@@ -12,6 +12,7 @@ on:
         type: choice
         options:
           - dev
+          - prod
 
 concurrency:
   group: ${{ github.ref }}-1
@@ -66,7 +67,7 @@ jobs:
     needs: [ build ]
     runs-on: ubuntu-latest
 
-    if: github.ref == 'refs/heads/main'
+#    if: github.ref == 'refs/heads/main'
 
     environment:
       name: approval-${{ github.event.inputs.env || 'dev' }}
@@ -79,8 +80,7 @@ jobs:
 
       - name: Load Docker image
         run: docker load -i image.tar
-      - name: print variable
-        run: echo "AWS_ROLE=${{ vars.AWS_ROLE }}"
+
       - name: Configure AWS credentials
         uses: aws-actions/configure-aws-credentials@v4
         with:
@@ -93,6 +93,7 @@ jobs:
 
       - name: Tag and Push image
         run: |
-          IMAGE_URI=${{ steps.login-ecr.outputs.registry }}/${{ vars.ECR_REPOSITORY }}:${IMAGE_TAG}
-          docker tag app:${IMAGE_TAG} $IMAGE_URI
-          docker push $IMAGE_URI
+          echo "ECR_REGISTRY=${{ steps.login-ecr.outputs.registry }}"
+#          IMAGE_URI=${{ steps.login-ecr.outputs.registry }}/${{ vars.ECR_REPOSITORY }}:${IMAGE_TAG}
+#          docker tag app:${IMAGE_TAG} $IMAGE_URI
+#          docker push $IMAGE_URI
