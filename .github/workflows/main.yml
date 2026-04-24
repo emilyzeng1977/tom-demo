@@ -69,6 +69,10 @@ jobs:
     name: Semantic Release
     needs: [build, test]
     runs-on: ubuntu-latest
+    env:
+      FORCE_JAVASCRIPT_ACTIONS_TO_NODE24: true
+    environment:
+      name: production
 
     if: github.ref == 'refs/heads/main'
 
