@@ -155,8 +155,7 @@ jobs:
 
       - name: Push image
         run: |
-#          IMAGE_URI=${{ steps.login-ecr.outputs.registry }}/${{ vars.ECR_REPOSITORY }}:${{ needs.docker.outputs.image-tag }}
-#          docker tag app:${{ needs.docker.outputs.image-tag }} $IMAGE_URI
-#          docker push $IMAGE_URI
-            echo "Simulating image push for version ${{ needs.docker.outputs.image-tag }} to environment ${{ github.event.inputs.env }}"
-
+          # IMAGE_URI=${{ steps.login-ecr.outputs.registry }}/${{ vars.ECR_REPOSITORY }}:${{ needs.docker.outputs.image-tag }}
+          # docker tag app:${{ needs.docker.outputs.image-tag }} $IMAGE_URI
+          # docker push $IMAGE_URI
+          echo "Simulating image push for version ${{ needs.docker.outputs.image-tag }} to environment ${{ github.event.inputs.env }}"
