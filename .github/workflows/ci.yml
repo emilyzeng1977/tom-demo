@@ -1,0 +1,147 @@
+name: CI + Release (Backend)
+
+on:
+  pull_request:
+    types: [opened, synchronize, reopened, edited]
+
+  push:
+    branches:
+      - "**"
+
+permissions:
+  contents: write
+
+concurrency:
+  group: ${{ github.workflow }}-${{ github.ref }}
+  cancel-in-progress: true
+
+
+jobs:
+  # ======================
+  # BUILD + TEST
+  # ======================
+  build:
+    name: Build & Test
+    runs-on: ubuntu-latest
+
+    steps:
+      # ======================
+      # CHECKOUT
+      # ======================
+      - name: Checkout
+        uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+
+      # ======================
+      # SETUP JAVA
+      # ======================
+      - name: Setup JDK
+        uses: actions/setup-java@v4
+        with:
+          distribution: temurin
+          java-version: '17'
+          cache: maven
+
+      # ======================
+      # BUILD + TEST
+      # ======================
+      - name: Build & Test
+        run: ./mvnw -B clean verify
+
+
+  # ======================
+  # COMMITLINT（PR only new commits）
+  # ======================
+  commitlint:
+    name: Commitlint (PR only)
+    runs-on: ubuntu-latest
+    if: github.event_name == 'pull_request'
+
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+
+      - name: Setup Node
+        uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          cache: yarn
+
+      - name: Install
+        run: yarn install --frozen-lockfile
+
+      # ======================
+      # COMMIT LINT (ONLY NEW COMMITS)
+      # ======================
+      - name: Commitlint (PR commits)
+        run: |
+          BASE=$(git merge-base origin/${{ github.base_ref }} HEAD)
+
+          git log $BASE..HEAD --pretty=format:"%s" | while read msg; do
+            echo "$msg" | npx commitlint
+          done
+
+      # ======================
+      # PR TITLE CHECK
+      # ======================
+      - name: Commitlint (PR title)
+        if: github.event_name == 'pull_request' && github.actor != 'dependabot[bot]'
+        run: |
+          echo "${{ github.event.pull_request.title }}" | npx commitlint
+
+
+  # ======================
+  # RELEASE（仅 main）
+  # ======================
+  release:
+    name: Semantic Release
+    runs-on: ubuntu-latest
+    needs: build
+
+    if: github.ref == 'refs/heads/main' && github.event_name == 'push'
+
+    outputs:
+      version: ${{ steps.version.outputs.version }}
+
+    steps:
+      # ======================
+      # CHECKOUT
+      # ======================
+      - name: Checkout
+        uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+
+      # ======================
+      # SETUP NODE（semantic-release 必需）
+      # ======================
+      - name: Setup Node
+        uses: actions/setup-node@v4
+        with:
+          node-version: 22
+
+      # ======================
+      # INSTALL
+      # ======================
+      - name: Install
+        run: npm install
+
+      # ======================
+      # SEMANTIC RELEASE
+      # ======================
+      - name: Semantic Release
+        run: npx semantic-release
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+
+      # ======================
+      # GET VERSION (from package.json)
+      # ======================
+      - name: Get version
+        id: version
+        run: |
+          VERSION=$(node -p "require('./package.json').version")
+          echo "version=$VERSION" >> $GITHUB_OUTPUT
