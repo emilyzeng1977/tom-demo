@@ -149,11 +149,11 @@ jobs:
 
 
   # ======================
-  # DEPLOY（可选环境）
+  # IMAGE BUILD & PUSH（可选环境）
   # ======================
-  deploy:
-    name: Deploy[${{ github.event.inputs.env || 'dev' }}]
-    needs: [build]
+  image-build-push:
+    name: Build & Push Image [${{ github.event.inputs.env || 'dev' }}]
+    needs: [build, release]
     runs-on: ubuntu-latest
     environment:
       name: ${{ github.event.inputs.env || 'dev' }}
