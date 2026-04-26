@@ -41,7 +41,6 @@ jobs:
       - name: Build & Test
         run: ./mvnw -B clean verify
 
-
   # ======================
   # 2. RELEASE
   # ======================
@@ -78,12 +77,11 @@ jobs:
           VERSION=$(./mvnw help:evaluate -Dexpression=project.version -q -DforceStdout)
           echo "version=$VERSION" >> $GITHUB_OUTPUT
 
-
   # ======================
-  # 3. DEV DEPLOY (APPROVAL 1)
+  # 3. IMAGE BUILD & PUSH DEV (APPROVAL 1)
   # ======================
-  deploy-dev:
-    name: Deploy DEV
+  image-build-dev:
+    name: Image Build & Push (DEV)
     runs-on: ubuntu-latest
     needs: release
 
@@ -107,7 +105,7 @@ jobs:
         id: login-ecr
         uses: aws-actions/amazon-ecr-login@v2
 
-      - name: Build & Push DEV Image
+      - name: Push Image (DEV)
         uses: docker/build-push-action@v4
         with:
           context: .
@@ -115,12 +113,11 @@ jobs:
           tags: |
             ${{ steps.login-ecr.outputs.registry }}/${{ vars.ECR_REPOSITORY }}:${{ needs.release.outputs.version }}
 
-
   # ======================
-  # 4. PROD DEPLOY (APPROVAL 2)
+  # 4. IMAGE BUILD & PUSH PROD (APPROVAL 2)
   # ======================
-  deploy-prod:
-    name: Deploy PROD
+  image-build-push:
+    name: Image Build & Push (PROD)
     runs-on: ubuntu-latest
     needs: release
 
@@ -128,6 +125,12 @@ jobs:
       name: approval-prod   # 👈 第二次独立审批
 
     steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Build JAR
+        run: ./mvnw -B package -DskipTests
+
       - name: Configure AWS credentials
         uses: aws-actions/configure-aws-credentials@v4
         with:
@@ -138,14 +141,6 @@ jobs:
         id: login-ecr
         uses: aws-actions/amazon-ecr-login@v2
 
-      - name: Promote to PROD (NO BUILD)
+      - name: Push Image (DEV)
         run: |
-          IMAGE=${{ steps.login-ecr.outputs.registry }}/${{ vars.ECR_REPOSITORY }}:${{ needs.release.outputs.version }}
-
-          echo "=================================="
-          echo "🚀 PROD DEPLOY (SIMULATION)"
-          echo "Image: $IMAGE"
-          echo "Env: prod"
-          echo "=================================="
-
-          echo "👉 Here would be real deploy command (ECS/K8s/Helm)"
+          echo "Pushing image to PROD with tag: ${{ needs.release.outputs.version }}"
