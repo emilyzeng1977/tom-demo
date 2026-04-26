@@ -141,6 +141,6 @@ jobs:
         id: login-ecr
         uses: aws-actions/amazon-ecr-login@v2
 
-      - name: Push Image (DEV)
+      - name: Push Image (PROD)
         run: |
           echo "Pushing image to PROD with tag: ${{ needs.release.outputs.version }}"
