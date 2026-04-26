@@ -138,10 +138,11 @@ jobs:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
 
       # ======================
-      # GET VERSION (from package.json)
+      # GET VERSION (from pom.xml)
       # ======================
-      - name: Get version
+      - name: Get version (from pom.xml)
         id: version
         run: |
-          VERSION=$(node -p "require('./package.json').version")
+          VERSION=$(./mvnw help:evaluate -Dexpression=project.version -q -DforceStdout)
+          echo "version=$VERSION"
           echo "version=$VERSION" >> $GITHUB_OUTPUT
