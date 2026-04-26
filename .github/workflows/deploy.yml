@@ -12,52 +12,66 @@ on:
           - prod
 
       version:
-        description: 'Image version (e.g. 1.2.0)'
-        required: true
+        description: 'Image version (optional, default = latest from ECR)'
+        required: false
 
 concurrency:
   group: deploy-${{ github.event.inputs.env }}
   cancel-in-progress: false
 
-env:
-  AWS_REGION: ap-east-1
-
 permissions:
   id-token: write
   contents: read
+
+env:
+  AWS_REGION: ap-east-1
 
 jobs:
   deploy:
     runs-on: ubuntu-latest
 
-    # ✅ 审批点（关键）
     environment:
       name: approval-${{ github.event.inputs.env }}
 
     steps:
-      - name: Download image artifact
-        uses: actions/download-artifact@v4
-        with:
-          name: docker-image-${{ github.event.inputs.version }}
-
-      - name: Load Docker image
-        run: docker load -i image.tar
-
-      - name: Configure AWS credentials
+      - name: Configure AWS credentials (OIDC)
         uses: aws-actions/configure-aws-credentials@v4
         with:
           role-to-assume: ${{ secrets.AWS_ROLE }}
-          aws-region: ${{ secrets.AWS_REGION }}
+          aws-region: ${{ env.AWS_REGION }}
 
-      - name: Login to ECR
-        uses: aws-actions/amazon-ecr-login@v2
-        id: login-ecr
-
-      - name: Push image
+      - name: Resolve version
+        id: resolve-version
         run: |
-          IMAGE_URI=${{ steps.login-ecr.outputs.registry }}/${{ secrets.ECR_REPOSITORY }}:${{ github.event.inputs.version }}
+          if [ -z "${{ github.event.inputs.version }}" ]; then
+            echo "No version provided, fetching latest from ECR..."
 
-          docker tag app:${{ github.event.inputs.version }} $IMAGE_URI
-          docker push $IMAGE_URI
+            VERSION=$(aws ecr describe-images \
+              --repository-name ${{ secrets.ECR_REPOSITORY }} \
+              --query 'sort_by(imageDetails,& imagePushedAt)[-1].imageTags[0]' \
+              --output text)
 
-          echo "✅ Deployed $IMAGE_URI to ${{ github.event.inputs.env }}"
+            echo "Using latest version: $VERSION"
+            echo "version=$VERSION" >> $GITHUB_OUTPUT
+          else
+            echo "Using provided version: ${{ github.event.inputs.version }}"
+            echo "version=${{ github.event.inputs.version }}" >> $GITHUB_OUTPUT
+          fi
+
+      - name: Login to Amazon ECR
+        id: login-ecr
+        uses: aws-actions/amazon-ecr-login@v2
+
+      - name: Simulate deploy
+        run: |
+          IMAGE_URI=${{ steps.login-ecr.outputs.registry }}/${{ secrets.ECR_REPOSITORY }}:${{ steps.resolve-version.outputs.version }}
+
+          echo "========================================"
+          echo "🚀 Deploy Simulation"
+          echo "Environment : ${{ github.event.inputs.env }}"
+          echo "Version     : ${{ steps.resolve-version.outputs.version }}"
+          echo "Image URI   : $IMAGE_URI"
+          echo "========================================"
+
+          echo "👉 Here you would run your deploy command"
+          echo "✅ (Simulation only, no real deployment executed)"
