@@ -164,7 +164,7 @@ jobs:
       - name: Configure AWS credentials
         uses: aws-actions/configure-aws-credentials@v2
         with:
-          role-to-assume: ${{ secrets.AWS_ROLE }}
+          role-to-assume: arn:aws:iam::377977679134:role/aiprime-github-actions-role-dev
           aws-region: ap-east-1
       - name: Login to Amazon ECR
         id: login-ecr
