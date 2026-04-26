@@ -153,7 +153,7 @@ jobs:
   # IMAGE BUILD & PUSH（仅 main）
   # ======================
   image-build-push:
-    name: Build & Push Image [${{ github.event.inputs.env || 'dev' }}]
+    name: Build & Push Image [${{ github.event.inputs.env }}]
     needs: [build, release]
     runs-on: ubuntu-latest
     if: github.ref == 'refs/heads/main' && github.event_name == 'push'
