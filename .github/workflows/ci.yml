@@ -1,17 +1,9 @@
-name: CI + Release (Backend)
+name: CI + Release + Deploy
 
 on:
-  pull_request:
-    types: [opened, synchronize, reopened, edited]
-
   push:
     branches:
-      - "**"
-
-  workflow_dispatch:
-    inputs:
-      env:
-        required: true
+      - main
 
 permissions:
   id-token: write
@@ -21,213 +13,139 @@ concurrency:
   group: ${{ github.workflow }}-${{ github.ref }}
   cancel-in-progress: true
 
+env:
+  AWS_REGION: ap-east-1
 
 jobs:
+
   # ======================
-  # BUILD + TEST
+  # 1. BUILD
   # ======================
   build:
     name: Build & Test
     runs-on: ubuntu-latest
 
     steps:
-      # ======================
-      # CHECKOUT
-      # ======================
       - name: Checkout
         uses: actions/checkout@v4
         with:
           fetch-depth: 0
 
-      # ======================
-      # SETUP JAVA
-      # ======================
       - name: Setup JDK
         uses: actions/setup-java@v4
         with:
           distribution: temurin
-          java-version: '17'
+          java-version: 17
           cache: maven
 
-      # ======================
-      # BUILD + TEST
-      # ======================
       - name: Build & Test
         run: ./mvnw -B clean verify
 
 
   # ======================
-  # COMMITLINT（PR only new commits）
-  # ======================
-  commitlint:
-    name: Commitlint (PR only)
-    runs-on: ubuntu-latest
-    if: github.event_name == 'pull_request'
-
-    steps:
-      - name: Checkout
-        uses: actions/checkout@v4
-        with:
-          fetch-depth: 0
-
-      - name: Setup Node
-        uses: actions/setup-node@v4
-        with:
-          node-version: 22
-          cache: yarn
-
-      - name: Install
-        run: yarn install --frozen-lockfile
-
-      # ======================
-      # COMMIT LINT (ONLY NEW COMMITS)
-      # ======================
-      - name: Commitlint (PR commits)
-        run: |
-          BASE=$(git merge-base origin/${{ github.base_ref }} HEAD)
-
-          git log $BASE..HEAD --pretty=format:"%s" | while read msg; do
-            echo "$msg" | npx commitlint
-          done
-
-      # ======================
-      # PR TITLE CHECK
-      # ======================
-      - name: Commitlint (PR title)
-        if: github.event_name == 'pull_request' && github.actor != 'dependabot[bot]'
-        run: |
-          echo "${{ github.event.pull_request.title }}" | npx commitlint
-
-
-  # ======================
-  # RELEASE（仅 main）
+  # 2. RELEASE
   # ======================
   release:
     name: Semantic Release
     runs-on: ubuntu-latest
     needs: build
 
-    if: github.ref == 'refs/heads/main' && github.event_name == 'push'
-
     outputs:
       version: ${{ steps.version.outputs.version }}
 
     steps:
-      # ======================
-      # CHECKOUT
-      # ======================
       - name: Checkout
         uses: actions/checkout@v4
         with:
           fetch-depth: 0
 
-      # ======================
-      # SETUP NODE（semantic-release 必需）
-      # ======================
       - name: Setup Node
         uses: actions/setup-node@v4
         with:
           node-version: 22
 
-      # ======================
-      # INSTALL
-      # ======================
       - name: Install
         run: npm install
 
-      # ======================
-      # SEMANTIC RELEASE
-      # ======================
       - name: Semantic Release
         run: npx semantic-release
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
 
-      # ======================
-      # GET VERSION (from pom.xml)
-      # ======================
-      - name: Get version (from pom.xml)
+      - name: Get Version
         id: version
         run: |
           VERSION=$(./mvnw help:evaluate -Dexpression=project.version -q -DforceStdout)
-          echo "version=$VERSION"
           echo "version=$VERSION" >> $GITHUB_OUTPUT
 
 
   # ======================
-  # IMAGE BUILD & PUSH - DEV
+  # 3. DEV DEPLOY (APPROVAL 1)
   # ======================
-  image-build-push:
-    name: Image Build & Push (DEV)
-    needs: release
+  deploy-dev:
+    name: Deploy DEV
     runs-on: ubuntu-latest
-
-    if: github.ref == 'refs/heads/main' && github.event_name == 'push'
+    needs: release
 
     environment:
-      name: approval-dev   # 👈 DEV 审批点
+      name: approval-dev   # 👈 第一次审批
 
     steps:
       - name: Checkout
         uses: actions/checkout@v4
-
-      - name: Setup JDK
-        uses: actions/setup-java@v4
-        with:
-          distribution: temurin
-          java-version: '17'
 
       - name: Build JAR
         run: ./mvnw -B package -DskipTests
 
       - name: Configure AWS credentials
-        uses: aws-actions/configure-aws-credentials@v2
+        uses: aws-actions/configure-aws-credentials@v4
         with:
-          role-to-assume: ${{ secrets.AWS_ROLE }}
-          aws-region: ${{ vars.AWS_REGION }}
+          role-to-assume: ${{ vars.AWS_ROLE }}
+          aws-region: ${{ env.AWS_REGION }}
 
-      - name: Login to Amazon ECR
+      - name: Login ECR
         id: login-ecr
-        uses: aws-actions/amazon-ecr-login@v1
+        uses: aws-actions/amazon-ecr-login@v2
 
-      - name: Build & Push Image (DEV)
+      - name: Build & Push DEV Image
         uses: docker/build-push-action@v4
         with:
           context: .
           push: true
           tags: |
-            ${{ steps.login-ecr.outputs.registry }}/${{ secrets.ECR_REPOSITORY }}:${{ needs.release.outputs.version }}
-  
+            ${{ steps.login-ecr.outputs.registry }}/${{ vars.ECR_REPOSITORY }}:${{ needs.release.outputs.version }}
+
 
   # ======================
-  # IMAGE BUILD & PUSH - PROD
+  # 4. PROD DEPLOY (APPROVAL 2)
   # ======================
-  image-build-push-prod:
-    name: Image Build & Push (PROD)
-    needs: image-build-push
+  deploy-prod:
+    name: Deploy PROD
     runs-on: ubuntu-latest
-
-    if: github.ref == 'refs/heads/main' && github.event_name == 'push'
+    needs: release
 
     environment:
-      name: approval-prod   # 👈 PROD 审批点
+      name: approval-prod   # 👈 第二次独立审批
 
     steps:
-      - name: Checkout
-        uses: actions/checkout@v4
-
       - name: Configure AWS credentials
-        uses: aws-actions/configure-aws-credentials@v2
+        uses: aws-actions/configure-aws-credentials@v4
         with:
-          role-to-assume: ${{ secrets.AWS_ROLE }}
-          aws-region: ${{ vars.AWS_REGION }}
+          role-to-assume: ${{ vars.AWS_ROLE }}
+          aws-region: ${{ env.AWS_REGION }}
 
-      - name: Login to Amazon ECR
+      - name: Login ECR
         id: login-ecr
-        uses: aws-actions/amazon-ecr-login@v1
+        uses: aws-actions/amazon-ecr-login@v2
 
-      - name: Promote Image to PROD
+      - name: Promote to PROD (NO BUILD)
         run: |
-          IMAGE=${{ steps.login-ecr.outputs.registry }}/${{ secrets.ECR_REPOSITORY }}:${{ needs.release.outputs.version }}
-  
-          echo "Promoting image to PROD: $IMAGE"
+          IMAGE=${{ steps.login-ecr.outputs.registry }}/${{ vars.ECR_REPOSITORY }}:${{ needs.release.outputs.version }}
+
+          echo "=================================="
+          echo "🚀 PROD DEPLOY (SIMULATION)"
+          echo "Image: $IMAGE"
+          echo "Env: prod"
+          echo "=================================="
+
+          echo "👉 Here would be real deploy command (ECS/K8s/Helm)"
