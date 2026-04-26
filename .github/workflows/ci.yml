@@ -154,80 +154,80 @@ jobs:
           echo "version=$VERSION" >> $GITHUB_OUTPUT
 
 
-# ======================
-# IMAGE BUILD & PUSH - DEV
-# ======================
-image-build-push:
-  name: Image Build & Push (DEV)
-  needs: release
-  runs-on: ubuntu-latest
+  # ======================
+  # IMAGE BUILD & PUSH - DEV
+  # ======================
+  image-build-push:
+    name: Image Build & Push (DEV)
+    needs: release
+    runs-on: ubuntu-latest
 
-  if: github.ref == 'refs/heads/main' && github.event_name == 'push'
+    if: github.ref == 'refs/heads/main' && github.event_name == 'push'
 
-  environment:
-    name: approval-dev   # 👈 DEV 审批点
+    environment:
+      name: approval-dev   # 👈 DEV 审批点
 
-  steps:
-    - name: Checkout
-      uses: actions/checkout@v4
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
 
-    - name: Setup JDK
-      uses: actions/setup-java@v4
-      with:
-        distribution: temurin
-        java-version: '17'
+      - name: Setup JDK
+        uses: actions/setup-java@v4
+        with:
+          distribution: temurin
+          java-version: '17'
 
-    - name: Build JAR
-      run: ./mvnw -B package -DskipTests
+      - name: Build JAR
+        run: ./mvnw -B package -DskipTests
 
-    - name: Configure AWS credentials
-      uses: aws-actions/configure-aws-credentials@v2
-      with:
-        role-to-assume: ${{ secrets.AWS_ROLE }}
-        aws-region: ${{ vars.AWS_REGION }}
+      - name: Configure AWS credentials
+        uses: aws-actions/configure-aws-credentials@v2
+        with:
+          role-to-assume: ${{ secrets.AWS_ROLE }}
+          aws-region: ${{ vars.AWS_REGION }}
 
-    - name: Login to Amazon ECR
-      id: login-ecr
-      uses: aws-actions/amazon-ecr-login@v1
+      - name: Login to Amazon ECR
+        id: login-ecr
+        uses: aws-actions/amazon-ecr-login@v1
 
-    - name: Build & Push Image (DEV)
-      uses: docker/build-push-action@v4
-      with:
-        context: .
-        push: true
-        tags: |
-          ${{ steps.login-ecr.outputs.registry }}/${{ secrets.ECR_REPOSITORY }}:${{ needs.release.outputs.version }}
+      - name: Build & Push Image (DEV)
+        uses: docker/build-push-action@v4
+        with:
+          context: .
+          push: true
+          tags: |
+            ${{ steps.login-ecr.outputs.registry }}/${{ secrets.ECR_REPOSITORY }}:${{ needs.release.outputs.version }}
+  
 
+  # ======================
+  # IMAGE BUILD & PUSH - PROD
+  # ======================
+  image-build-push-prod:
+    name: Image Build & Push (PROD)
+    needs: image-build-push
+    runs-on: ubuntu-latest
 
-# ======================
-# IMAGE BUILD & PUSH - PROD
-# ======================
-image-build-push-prod:
-  name: Image Build & Push (PROD)
-  needs: image-build-push
-  runs-on: ubuntu-latest
+    if: github.ref == 'refs/heads/main' && github.event_name == 'push'
 
-  if: github.ref == 'refs/heads/main' && github.event_name == 'push'
+    environment:
+      name: approval-prod   # 👈 PROD 审批点
 
-  environment:
-    name: approval-prod   # 👈 PROD 审批点
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
 
-  steps:
-    - name: Checkout
-      uses: actions/checkout@v4
+      - name: Configure AWS credentials
+        uses: aws-actions/configure-aws-credentials@v2
+        with:
+          role-to-assume: ${{ secrets.AWS_ROLE }}
+          aws-region: ${{ vars.AWS_REGION }}
 
-    - name: Configure AWS credentials
-      uses: aws-actions/configure-aws-credentials@v2
-      with:
-        role-to-assume: ${{ secrets.AWS_ROLE }}
-        aws-region: ${{ vars.AWS_REGION }}
+      - name: Login to Amazon ECR
+        id: login-ecr
+        uses: aws-actions/amazon-ecr-login@v1
 
-    - name: Login to Amazon ECR
-      id: login-ecr
-      uses: aws-actions/amazon-ecr-login@v1
-
-    - name: Promote Image to PROD
-      run: |
-        IMAGE=${{ steps.login-ecr.outputs.registry }}/${{ secrets.ECR_REPOSITORY }}:${{ needs.release.outputs.version }}
-
-        echo "Promoting image to PROD: $IMAGE"
+      - name: Promote Image to PROD
+        run: |
+          IMAGE=${{ steps.login-ecr.outputs.registry }}/${{ secrets.ECR_REPOSITORY }}:${{ needs.release.outputs.version }}
+  
+          echo "Promoting image to PROD: $IMAGE"
